@@ -1,0 +1,11 @@
+{
+  "appId": "local.aixw.dashboard",
+  "productName": "AIXW 桌面实时看板",
+  "directories": {
+    "output": "release"
+  },
+  "files": ["dist/**", "dist-electron/**", "package.json"],
+  "win": {
+    "target": ["nsis"]
+  }
+}
