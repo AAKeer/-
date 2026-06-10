@@ -1,5 +1,26 @@
 import { BrowserWindow } from "electron";
-import { hasAuthenticatedAixwSession } from "./aixwClient.js";
+import { hasAuthenticatedAixwSession, setAixwAuthTokens } from "./aixwClient.js";
+
+interface AixwStorageTokens {
+  authToken: string | null;
+  refreshToken: string | null;
+  tokenExpiresAt: string | null;
+}
+
+async function readAixwStorageTokens(loginWindow: BrowserWindow): Promise<AixwStorageTokens | null> {
+  try {
+    return (await loginWindow.webContents.executeJavaScript(
+      `({
+        authToken: window.localStorage.getItem("auth_token"),
+        refreshToken: window.localStorage.getItem("refresh_token"),
+        tokenExpiresAt: window.localStorage.getItem("token_expires_at")
+      })`,
+      true,
+    )) as AixwStorageTokens;
+  } catch {
+    return null;
+  }
+}
 
 export function openAixwLoginWindow(parent: BrowserWindow): Promise<void> {
   return new Promise((resolve) => {
@@ -33,12 +54,20 @@ export function openAixwLoginWindow(parent: BrowserWindow): Promise<void> {
       if (!loginWindow.isDestroyed()) {
         loginWindow.close();
       }
+      if (!parent.isDestroyed()) {
+        parent.show();
+        parent.focus();
+      }
     };
 
     const checkAuthenticated = async () => {
       if (loginWindow.isDestroyed()) {
         finish();
         return;
+      }
+      const tokens = await readAixwStorageTokens(loginWindow);
+      if (tokens?.authToken) {
+        setAixwAuthTokens(tokens);
       }
       if (await hasAuthenticatedAixwSession()) {
         finish();
