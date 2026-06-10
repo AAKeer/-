@@ -3,7 +3,7 @@ import type {
   AixwProfileResponse,
   AixwUsageStatsResponse,
   DashboardData,
-} from "../shared/dashboardTypes";
+} from "../shared/dashboardTypes.js";
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
