@@ -13,6 +13,7 @@ const API_PREFIX = `${AIXW_ORIGIN}/api/v1`;
 async function requestJson<T>(path: string): Promise<T> {
   const response = await session.defaultSession.fetch(`${API_PREFIX}${path}`, {
     method: "GET",
+    credentials: "include",
     headers: {
       Accept: "application/json",
     },
@@ -27,6 +28,15 @@ async function requestJson<T>(path: string): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+export async function hasAuthenticatedAixwSession(): Promise<boolean> {
+  try {
+    await requestJson<AixwProfileResponse>("/user/profile");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function todayRangeQuery(): string {
