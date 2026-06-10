@@ -15,7 +15,7 @@ function createWindow(): void {
     title: "AIXW 桌面实时看板",
     backgroundColor: "#071923",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
       nodeIntegration: false,
       contextIsolation: true,
     },
