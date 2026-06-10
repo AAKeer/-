@@ -1,112 +1,101 @@
-import { Activity, Box, Clock, Database, DollarSign, Gauge, KeyRound, WalletCards } from "lucide-react";
-import { formatCost, formatDuration, formatInteger, formatPercent, formatTokenWan } from "./formatters";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { AuthState, DashboardData, DashboardEnvelope } from "../shared/dashboardTypes";
+import { login, logout, refreshDashboard } from "./api";
+import { DashboardGrid } from "./components/DashboardGrid";
+import { HeaderBar } from "./components/HeaderBar";
+import { StatusBanner } from "./components/StatusBanner";
 
-const previewData = {
-  balance: 47.25,
-  apiKeyCount: 1,
-  activeApiKeyCount: 1,
-  todayRequests: 125,
-  totalRequests: 1227,
-  todayActualCost: 4.0157,
-  totalActualCost: 52.7462,
-  todayTokens: 4100000,
-  totalTokens: 44000000,
-  cacheHitRate: 35.7,
-  averageDurationMs: 13710,
-};
-
-const metrics = [
-  {
-    label: "余额",
-    value: formatCost(previewData.balance),
-    helper: "可用",
-    icon: WalletCards,
-    tone: "green",
-  },
-  {
-    label: "API 密钥",
-    value: formatInteger(previewData.apiKeyCount),
-    helper: `${formatInteger(previewData.activeApiKeyCount)} 启用`,
-    icon: KeyRound,
-    tone: "blue",
-  },
-  {
-    label: "今日请求",
-    value: formatInteger(previewData.todayRequests),
-    helper: `总计：${formatInteger(previewData.totalRequests)}`,
-    icon: Activity,
-    tone: "green",
-  },
-  {
-    label: "今日消费",
-    value: formatCost(previewData.todayActualCost),
-    helper: `总计：${formatCost(previewData.totalActualCost)}`,
-    icon: DollarSign,
-    tone: "purple",
-  },
-  {
-    label: "今日 Token",
-    value: formatTokenWan(previewData.todayTokens),
-    helper: "单位：万",
-    icon: Box,
-    tone: "amber",
-  },
-  {
-    label: "累计 Token",
-    value: formatTokenWan(previewData.totalTokens),
-    helper: "单位：万",
-    icon: Database,
-    tone: "blue",
-  },
-  {
-    label: "缓存命中率",
-    value: formatPercent(previewData.cacheHitRate),
-    helper: "等待接入真实接口",
-    icon: Gauge,
-    tone: "cyan",
-  },
-  {
-    label: "平均响应",
-    value: formatDuration(previewData.averageDurationMs),
-    helper: "平均时间",
-    icon: Clock,
-    tone: "rose",
-  },
-];
+const REFRESH_INTERVAL_SECONDS = 15;
 
 export function App() {
+  const [authState, setAuthState] = useState<AuthState>("unknown");
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>("未登录时不会自动读取数据，请先登录 AIXW。");
+  const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(REFRESH_INTERVAL_SECONDS);
+  const refreshInFlight = useRef(false);
+
+  const applyEnvelope = useCallback((envelope: DashboardEnvelope) => {
+    setAuthState(envelope.authState);
+    setErrorMessage(envelope.errorMessage);
+    if (envelope.data) {
+      setData(envelope.data);
+    }
+  }, []);
+
+  const doRefresh = useCallback(async () => {
+    if (refreshInFlight.current) {
+      return;
+    }
+    refreshInFlight.current = true;
+    setLoading(true);
+    try {
+      const envelope = await refreshDashboard();
+      applyEnvelope(envelope);
+      setCountdown(REFRESH_INTERVAL_SECONDS);
+    } finally {
+      refreshInFlight.current = false;
+      setLoading(false);
+    }
+  }, [applyEnvelope]);
+
+  const doLogin = useCallback(async () => {
+    setLoading(true);
+    try {
+      const envelope = await login();
+      applyEnvelope(envelope);
+      setCountdown(REFRESH_INTERVAL_SECONDS);
+    } finally {
+      setLoading(false);
+    }
+  }, [applyEnvelope]);
+
+  const doLogout = useCallback(async () => {
+    setLoading(true);
+    try {
+      const envelope = await logout();
+      applyEnvelope(envelope);
+      setData(null);
+      setCountdown(REFRESH_INTERVAL_SECONDS);
+    } finally {
+      setLoading(false);
+    }
+  }, [applyEnvelope]);
+
+  useEffect(() => {
+    void doRefresh();
+  }, [doRefresh]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCountdown((value) => {
+        if (authState !== "authenticated") {
+          return REFRESH_INTERVAL_SECONDS;
+        }
+        if (value <= 1) {
+          void doRefresh();
+          return REFRESH_INTERVAL_SECONDS;
+        }
+        return value - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [authState, doRefresh]);
+
   return (
     <div className="app-shell">
-      <header className="header-bar">
-        <div>
-          <h1>AIXW 桌面实时看板</h1>
-          <p>预览界面 · 后续接入登录和 15 秒实时刷新</p>
-        </div>
-        <div className="header-actions">
-          <span className="status-pill">未连接</span>
-          <button className="primary-button" type="button">
-            登录 AIXW
-          </button>
-        </div>
-      </header>
-
-      <main className="dashboard-grid">
-        {metrics.map((metric) => {
-          const Icon = metric.icon;
-          return (
-            <article className={`metric-card tone-${metric.tone}`} key={metric.label}>
-              <div className="metric-icon">
-                <Icon size={28} strokeWidth={2.2} />
-              </div>
-              <div className="metric-copy">
-                <p className="metric-label">{metric.label}</p>
-                <p className="metric-value">{metric.value}</p>
-                <p className="metric-helper">{metric.helper}</p>
-              </div>
-            </article>
-          );
-        })}
-      </main>
+      <HeaderBar
+        authState={authState}
+        loading={loading}
+        countdown={countdown}
+        lastUpdatedAt={data?.lastUpdatedAt ?? null}
+        onRefresh={doRefresh}
+        onLogin={doLogin}
+        onLogout={doLogout}
+      />
+      <StatusBanner message={errorMessage} />
+      <DashboardGrid data={data} />
     </div>
   );
 }
