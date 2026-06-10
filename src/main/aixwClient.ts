@@ -32,6 +32,10 @@ function hasUsableAuthToken(): boolean {
   return typeof authTokens.authToken === "string" && authTokens.authToken.trim().length > 0;
 }
 
+export function hasStoredAixwAuthToken(): boolean {
+  return hasUsableAuthToken();
+}
+
 function unwrapResponse<T>(payload: unknown): T {
   if (payload && typeof payload === "object" && "code" in payload) {
     const envelope = payload as AixwEnvelope<T>;

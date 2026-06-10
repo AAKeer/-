@@ -3,9 +3,11 @@ import type { AuthState, DashboardData, DashboardEnvelope } from "../shared/dash
 import { login, logout, refreshDashboard } from "./api";
 import { DashboardGrid } from "./components/DashboardGrid";
 import { HeaderBar } from "./components/HeaderBar";
+import { MiniDashboard } from "./components/MiniDashboard";
 import { StatusBanner } from "./components/StatusBanner";
 
 const REFRESH_INTERVAL_SECONDS = 15;
+const IS_MINI_MODE = new URLSearchParams(window.location.search).get("mini") === "1";
 
 export function App() {
   const [authState, setAuthState] = useState<AuthState>("unknown");
@@ -67,6 +69,11 @@ export function App() {
   }, [doRefresh]);
 
   useEffect(() => {
+    document.body.classList.toggle("mini-mode", IS_MINI_MODE);
+    return () => document.body.classList.remove("mini-mode");
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       setCountdown((value) => {
         if (authState !== "authenticated") {
@@ -82,6 +89,10 @@ export function App() {
 
     return () => window.clearInterval(timer);
   }, [authState, doRefresh]);
+
+  if (IS_MINI_MODE) {
+    return <MiniDashboard authState={authState} data={data} errorMessage={errorMessage} loading={loading} onRefresh={doRefresh} />;
+  }
 
   return (
     <div className="app-shell">
